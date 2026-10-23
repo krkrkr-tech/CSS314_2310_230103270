@@ -1,0 +1,4 @@
+Serial Time (ms): 430.865
+Parallel Time (ms): 14.136
+Speedup: 30.481x
+Verification Status: PASS
