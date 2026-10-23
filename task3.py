@@ -1,5 +1,3 @@
-"""Benchmark serial and chunked threaded inclusive prefix scans."""
-
 from __future__ import annotations
 
 import os
