@@ -1,0 +1,6 @@
+Student ID: 230103270
+Logical core count: 16
+Physical core count used: 8
+Mode A (Row-Major) runtime: 286.517 ms
+Mode B (Column-Major / Strided) runtime: 171.672 ms
+Cache penalty factor (Mode B / Mode A): 0.599x

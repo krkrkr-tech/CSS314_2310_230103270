@@ -1,0 +1,6 @@
+Student ID: 230103270
+Sample points: 40,000,000
+Threads: 4
+Shared PRNG: Computed pi = 3.1417424000, absolute error = 0.0001497464, wall time = 564.784 ms
+Independent PRNG: Computed pi = 3.1418035000, absolute error = 0.0002108464, wall time = 458.460 ms
+Speedup from eliminating generator state locking: 1.232x

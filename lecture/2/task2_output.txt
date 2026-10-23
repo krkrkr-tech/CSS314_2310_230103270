@@ -1,0 +1,13 @@
+﻿Student ID: 230103270
+Array elements: 20,000,000
+Logical cores available: 16
+Parallel fraction (P): 0.95
+Serial reference sum: 9997352.071739111095667
+
+   Cores |  Wall Time (ms) |    Speedup |  Amdahl Upper Bound
+--------------------------------------------------------------
+       1 |          37.025 |      1.000 |               1.000
+       2 |          28.044 |      1.320 |               1.905
+       4 |          21.549 |      1.718 |               3.478
+      16 |          15.310 |      2.418 |               9.143
+      32 |          13.332 |      2.777 |              12.549
