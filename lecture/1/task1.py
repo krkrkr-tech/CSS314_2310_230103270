@@ -1,5 +1,3 @@
-"""Serial hardware probe and numerical baseline for Task 1."""
-
 from __future__ import annotations
 
 import math
@@ -15,7 +13,6 @@ ELEMENT_COUNT = 20_000_000
 
 
 def serial_sum(values: np.ndarray) -> float:
-    """Compute the sum with one explicit serial pass."""
     total = 0.0
     for value in values:
         total += float(value)
@@ -23,7 +20,6 @@ def serial_sum(values: np.ndarray) -> float:
 
 
 def serial_standard_deviation(values: np.ndarray, mean: float) -> float:
-    """Compute population standard deviation with one explicit serial pass."""
     squared_deviation_sum = 0.0
     for value in values:
         difference = float(value) - mean
