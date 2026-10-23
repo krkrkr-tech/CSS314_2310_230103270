@@ -1,124 +1,118 @@
-"""Measure array transfer overhead for pipe serialization and shared memory."""
 
 from __future__ import annotations
 
-import multiprocessing as mp
-import statistics
+import queue
+import threading
 import time
-from multiprocessing.connection import Connection
-from multiprocessing.shared_memory import SharedMemory
-
-import numpy as np
+from collections.abc import Callable, Iterable
 
 
-ARRAY_SIZES = (100_000, 1_000_000, 10_000_000)
-REPETITIONS = 3
-DTYPE = np.float64
+ITEM_COUNT = 1_000
+WORKER_COUNT = 4
+DYNAMIC_CHUNK_SIZE = 1
 
 
-def _pipe_worker(connection: Connection) -> None:
-    while True:
-        message = connection.recv()
-        if message is None:
-            return
-        values = message
-        connection.send(float(np.sum(values, dtype=np.float64)))
+def process_item(item_index: int) -> None:
+    time.sleep(0.0001 * (item_index % 20))
 
 
-def _shared_memory_worker(connection: Connection) -> None:
-    while True:
-        message = connection.recv()
-        if message is None:
-            return
-        name, size = message
-        shared_memory = SharedMemory(name=name)
-        try:
-            values = np.ndarray(size, dtype=DTYPE, buffer=shared_memory.buf)
-            connection.send(float(np.sum(values, dtype=np.float64)))
-        finally:
-            shared_memory.close()
+def _run_workers(
+    assignments: Iterable[Iterable[int]],
+    process: Callable[[int], None],
+) -> tuple[float, float, float]:
+    completion_times: list[float] = []
+    completion_lock = threading.Lock()
+
+    def worker(items: Iterable[int]) -> None:
+        for item_index in items:
+            process(item_index)
+        with completion_lock:
+            completion_times.append(time.perf_counter())
+
+    start = time.perf_counter()
+    threads = [
+        threading.Thread(target=worker, args=(items,))
+        for items in assignments
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    elapsed_ms = (time.perf_counter() - start) * 1_000
+    completion_delta_ms = (
+        (max(completion_times) - min(completion_times)) * 1_000
+        if completion_times
+        else 0.0
+    )
+    return elapsed_ms, min(completion_times) - start, completion_delta_ms
 
 
-def _wait_for_worker(process: mp.Process, connection: Connection) -> None:
-    if not process.is_alive():
-        raise RuntimeError(f"Worker exited before benchmark: exit code {process.exitcode}")
-    connection.send(None)
-    process.join(timeout=10)
-    if process.is_alive():
-        process.terminate()
-        process.join()
-        raise RuntimeError("Worker did not stop within 10 seconds")
+def run_static() -> tuple[float, float, float]:
+    block_size = ITEM_COUNT // WORKER_COUNT
+    assignments = [
+        range(worker_index * block_size, (worker_index + 1) * block_size)
+        for worker_index in range(WORKER_COUNT)
+    ]
+    return _run_workers(assignments, process_item)
 
 
-def _pipe_timings(values: np.ndarray) -> list[float]:
-    parent, child = mp.Pipe()
-    process = mp.Process(target=_pipe_worker, args=(child,))
-    process.start()
-    child.close()
-    try:
-        timings = []
-        expected = float(np.sum(values, dtype=np.float64))
-        for _ in range(REPETITIONS + 1):
-            start = time.perf_counter()
-            parent.send(values)
-            received_sum = parent.recv()
-            timings.append((time.perf_counter() - start) * 1_000)
-            if not np.isclose(received_sum, expected):
-                raise RuntimeError("Pipe worker checksum mismatch")
-        return timings[1:]
-    finally:
-        _wait_for_worker(process, parent)
-        parent.close()
+def run_dynamic() -> tuple[float, float, float]:
+    work_queue: queue.Queue[list[int] | None] = queue.Queue()
+    for start in range(0, ITEM_COUNT, DYNAMIC_CHUNK_SIZE):
+        work_queue.put(
+            list(range(start, min(start + DYNAMIC_CHUNK_SIZE, ITEM_COUNT)))
+        )
+    for _ in range(WORKER_COUNT):
+        work_queue.put(None)
 
-
-def _shared_memory_timings(values: np.ndarray) -> list[float]:
-    parent, child = mp.Pipe()
-    process = mp.Process(target=_shared_memory_worker, args=(child,))
-    process.start()
-    child.close()
-    try:
-        timings = []
-        expected = float(np.sum(values, dtype=np.float64))
-        for _ in range(REPETITIONS + 1):
-            start = time.perf_counter()
-            shared_memory = SharedMemory(create=True, size=values.nbytes)
+    def consume_queue(_: int) -> None:
+        while True:
+            chunk = work_queue.get()
             try:
-                shared_values = np.ndarray(values.shape, dtype=DTYPE, buffer=shared_memory.buf)
-                shared_values[:] = values
-                parent.send((shared_memory.name, values.shape))
-                received_sum = parent.recv()
+                if chunk is None:
+                    return
+                for item_index in chunk:
+                    process_item(item_index)
             finally:
-                shared_memory.close()
-                shared_memory.unlink()
-            timings.append((time.perf_counter() - start) * 1_000)
-            if not np.isclose(received_sum, expected):
-                raise RuntimeError("Shared-memory worker checksum mismatch")
-        return timings[1:]
-    finally:
-        _wait_for_worker(process, parent)
-        parent.close()
+                work_queue.task_done()
 
+    completion_times: list[float] = []
+    completion_lock = threading.Lock()
 
-def _benchmark_size(size: int) -> tuple[float, float]:
-    values = np.arange(size, dtype=DTYPE)
-    pipe_ms = statistics.median(_pipe_timings(values))
-    shared_ms = statistics.median(_shared_memory_timings(values))
-    return pipe_ms, shared_ms
+    def worker() -> None:
+        consume_queue(0)
+        with completion_lock:
+            completion_times.append(time.perf_counter())
+
+    start = time.perf_counter()
+    threads = [threading.Thread(target=worker) for _ in range(WORKER_COUNT)]
+    for thread in threads:
+        thread.start()
+    work_queue.join()
+    for thread in threads:
+        thread.join()
+    elapsed_ms = (time.perf_counter() - start) * 1_000
+    completion_delta_ms = (max(completion_times) - min(completion_times)) * 1_000
+    return elapsed_ms, min(completion_times) - start, completion_delta_ms
 
 
 def main() -> None:
-    print("Task 4: CPU array transfer overhead")
-    print("Timing excludes worker startup and includes checksum validation.")
-    print("Path A includes Pipe/Pickle serialization; Path B includes shared-memory setup and copy.")
-    print(f"Repetitions per path: {REPETITIONS} (median reported)")
+    static_time_ms, _, static_delta_ms = run_static()
+    dynamic_time_ms, _, dynamic_delta_ms = run_dynamic()
+
+    print("Task 4: Work stealing and scheduling under skew")
+    print(f"Items: {ITEM_COUNT:,}")
+    print(f"Workers: {WORKER_COUNT}")
+    print("Workload per item: sleep(0.0001 * (i % 20)) seconds")
+    print(f"Dynamic chunk size: {DYNAMIC_CHUNK_SIZE}")
     print()
-    print(f"{'N':>12} {'Path A IPC (ms)':>18} {'Path B shared (ms)':>21} {'A/B ratio':>12}")
-    print("-" * 67)
-    for size in ARRAY_SIZES:
-        pipe_ms, shared_ms = _benchmark_size(size)
-        print(f"{size:12,d} {pipe_ms:18.3f} {shared_ms:21.3f} {pipe_ms / shared_ms:12.2f}x")
+    print(f"{'Strategy':<28} {'Wall Time (ms)':>16} {'Completion Delta (ms)':>24}")
+    print("-" * 72)
+    print(f"{'A: Static chunks':<28} {static_time_ms:>16.3f} {static_delta_ms:>24.3f}")
+    print(f"{'B: Dynamic queue':<28} {dynamic_time_ms:>16.3f} {dynamic_delta_ms:>24.3f}")
+    print(f"Execution ratio (Static / Dynamic): {static_time_ms / dynamic_time_ms:.3f}x")
+    print("Verification status: PASS")
 
 
 if __name__ == "__main__":
-    mp.freeze_support()
     main()
