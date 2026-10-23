@@ -1,0 +1,18 @@
+﻿cd4236d - 2026-10-23 10:55:49 +0500 : feat: task 8 compute geometry
+dff6b0b - 2026-10-23 10:49:42 +0500 : feat: task 7 memory bandwidth saturation
+794753b - 2026-10-23 10:40:13 +0500 : feat: task 6 race condition forensics
+306a105 - 2026-10-23 10:26:33 +0500 : feat: task 5 overhead crossover
+82f258e - 2026-10-23 10:16:45 +0500 : feat: task 4 scheduling under skew
+00ab8c2 - 2026-10-23 10:01:19 +0500 : feat: task 3 false sharing profile
+8d21f75 - 2026-10-23 09:56:56 +0500 : feat: task 2 amdahl scaling
+86cfb00 - 2026-10-23 09:52:00 +0500 : feat: task 1 baseline execution
+6e600dc - 2026-10-23 09:09:59 +0500 : feat: task 4 memory transfer profile
+59dbd6b - 2026-10-23 08:57:41 +0500 : feat: task 3 parallel scan verification
+76569cb - 2026-10-23 08:48:24 +0500 : feat: task 2 prng state isolation
+e05d533 - 2026-10-23 08:43:29 +0500 : feat: task 1 spatial cache profiling
+e6c7619 - 2026-02-26 15:17:34 +0500 : not main
+6179b04 - 2026-02-26 14:54:41 +0500 : change 2
+5ae707a - 2026-02-26 12:53:11 +0500 : changes
+d48891a - 2026-02-25 16:08:18 +0500 : Merge branch 'main' of https://github.com/krkrkr-tech/FocusGuard-project
+2769474 - 2026-02-25 16:02:36 +0500 : initial
+e27791a - 2026-02-21 15:24:44 +0500 : Initial commit
