@@ -1,2 +1,3 @@
-230103270   
-03-P Practice group
+Gaziz Kairat 230103270   
+Lecture: 01-N
+Practice group: 03-P 
